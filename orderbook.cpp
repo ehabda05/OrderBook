@@ -9,12 +9,18 @@ void OrderBook::addOrder(OrderPointer order) {
         throw std::logic_error("Order ID already exists.");
     }
 
+    if (order->getRemainingQuantity() == 0) {
+        throw std::logic_error("Cannot add order with zero remaining quantity.");
+    }
+
     if (order->getOrderType() == OrderType::fillAndKill &&
         !canMatch(order->getSide(), order->getPrice())) {
         return;
     }
 
-    if (order->getSide() == Side::buy) {
+    Side incomingSide = order->getSide();
+
+    if (incomingSide == Side::buy) {
         bids_[order->getPrice()].push_back(order);
     } else {
         asks_[order->getPrice()].push_back(order);
@@ -22,7 +28,7 @@ void OrderBook::addOrder(OrderPointer order) {
 
     orders_[order->getId()] = order;
 
-    matchOrders();
+    matchOrders(incomingSide);
 
     if (order->getOrderType() == OrderType::fillAndKill &&
         orders_.count(order->getId()) > 0) {
@@ -87,6 +93,10 @@ void OrderBook::modifyOrder(const OrderModify& order) {
         return;
     }
 
+    if (order.quantity_ == 0) {
+        throw std::logic_error("Modified order quantity must be positive.");
+    }
+
     OrderType oldOrderType = it->second->getOrderType();
 
     cancelOrder(order.orderId_);
@@ -133,6 +143,10 @@ OrderBookLevelInfos OrderBook::getOrderInfos() const {
     return OrderBookLevelInfos{askInfos, bidInfos};
 }
 
+const std::vector<Trade>& OrderBook::getTrades() const {
+    return trades_;
+}
+
 bool OrderBook::canMatch(Side side, Price price) const {
     if (side == Side::buy) {
         if (asks_.empty()) {
@@ -155,7 +169,7 @@ bool OrderBook::canMatch(Side side, Price price) const {
     return false;
 }
 
-void OrderBook::matchOrders() {
+void OrderBook::matchOrders(Side incomingSide) {
     while (!bids_.empty() && !asks_.empty()) {
         auto bestBidIt = bids_.begin();
         auto bestAskIt = asks_.begin();
@@ -163,7 +177,6 @@ void OrderBook::matchOrders() {
         Price bestBidPrice = bestBidIt->first;
         Price bestAskPrice = bestAskIt->first;
 
-        // No crossing market.
         if (bestBidPrice < bestAskPrice) {
             break;
         }
@@ -178,6 +191,23 @@ void OrderBook::matchOrders() {
             bidOrder->getRemainingQuantity(),
             askOrder->getRemainingQuantity()
         );
+
+        Price tradePrice;
+
+        if (incomingSide == Side::buy) {
+            // Incoming buy hits resting ask.
+            tradePrice = bestAskPrice;
+        } else {
+            // Incoming sell hits resting bid.
+            tradePrice = bestBidPrice;
+        }
+
+        trades_.push_back(Trade{
+            bidOrder->getId(),
+            askOrder->getId(),
+            tradePrice,
+            quantityToFill
+        });
 
         bidOrder->fill(quantityToFill);
         askOrder->fill(quantityToFill);

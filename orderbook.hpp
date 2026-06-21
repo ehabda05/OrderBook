@@ -1,15 +1,16 @@
-#ifndef ORDERBOOK_H
-#define ORDERBOOK_H 
+#ifndef ORDERBOOK_HPP
+#define ORDERBOOK_HPP
 
-#include <vector>
-#include <cstdint>
-#include <stdexcept>
-#include <map>
-#include <list>
-#include <unordered_map>
-#include <memory>
-#include <functional>
 #include <algorithm>
+#include <cstdint>
+#include <cstddef>
+#include <functional>
+#include <list>
+#include <map>
+#include <memory>
+#include <stdexcept>
+#include <unordered_map>
+#include <vector>
 
 enum class OrderType {
     goodTillCancel,
@@ -35,50 +36,88 @@ using LevelInfos = std::vector<LevelInfo>;
 class OrderBookLevelInfos {
 public:
     OrderBookLevelInfos(const LevelInfos& asks, const LevelInfos& bids)
-        : asks_(asks), bids_(bids) 
+        : asks_(asks), bids_(bids)
     {}
 
-    const LevelInfos& getAsks() const { return asks_; }
-    const LevelInfos& getBids() const { return bids_; }
+    const LevelInfos& getAsks() const {
+        return asks_;
+    }
+
+    const LevelInfos& getBids() const {
+        return bids_;
+    }
 
 private:
     LevelInfos asks_;
     LevelInfos bids_;
 };
 
+struct Trade {
+    OrderId bidOrderId_;
+    OrderId askOrderId_;
+    Price price_;
+    Quantity quantity_;
+};
+
 class Order {
 public:
-    Order(OrderId orderId, OrderType orderType, Side side, Price price, Quantity quantity)
-        : id_(orderId), 
-          orderType_(orderType), 
-          side_(side), 
-          price_(price), 
+    Order(
+        OrderId orderId,
+        OrderType orderType,
+        Side side,
+        Price price,
+        Quantity quantity
+    )
+        : id_(orderId),
+          orderType_(orderType),
+          side_(side),
+          price_(price),
           initialQuantity_(quantity),
           remainingQuantity_(quantity)
-    {}
+    {
+        if (quantity == 0) {
+            throw std::logic_error("Order quantity must be positive.");
+        }
+    }
 
-    OrderId getId() const { return id_; }
-    OrderType getOrderType() const { return orderType_; }
-    Side getSide() const { return side_; }
-    Price getPrice() const { return price_; }
+    OrderId getId() const {
+        return id_;
+    }
 
-    Quantity getInitialQuantity() const { return initialQuantity_; }
-    Quantity getRemainingQuantity() const { return remainingQuantity_; }
+    OrderType getOrderType() const {
+        return orderType_;
+    }
 
-    Quantity getFilledQuantity() const { 
-        return getInitialQuantity() - getRemainingQuantity(); 
+    Side getSide() const {
+        return side_;
+    }
+
+    Price getPrice() const {
+        return price_;
+    }
+
+    Quantity getInitialQuantity() const {
+        return initialQuantity_;
+    }
+
+    Quantity getRemainingQuantity() const {
+        return remainingQuantity_;
+    }
+
+    Quantity getFilledQuantity() const {
+        return initialQuantity_ - remainingQuantity_;
     }
 
     bool isFilled() const {
         return remainingQuantity_ == 0;
     }
 
-    void fill(Quantity quantity) { 
-        if (quantity > getRemainingQuantity()) {
+    void fill(Quantity quantity) {
+        if (quantity > remainingQuantity_) {
             throw std::logic_error("Cannot fill more than remaining quantity.");
-        } 
+        }
 
-        remainingQuantity_ -= quantity; 
+        remainingQuantity_ -= quantity;
     }
 
 private:
@@ -108,16 +147,18 @@ public:
 
     std::size_t size() const;
     OrderBookLevelInfos getOrderInfos() const;
+    const std::vector<Trade>& getTrades() const;
 
 private:
     bool canMatch(Side side, Price price) const;
-    void matchOrders();
+    void matchOrders(Side incomingSide);
 
 private:
     std::map<Price, OrderPointers, std::greater<Price>> bids_;
     std::map<Price, OrderPointers, std::less<Price>> asks_;
 
     std::unordered_map<OrderId, OrderPointer> orders_;
+    std::vector<Trade> trades_;
 };
 
-#endif // ORDERBOOK_H
+#endif // ORDERBOOK_HPP
