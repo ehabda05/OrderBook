@@ -1,31 +1,39 @@
 CXX = g++
-CXXFLAGS = -std=c++17 -Wall -Wextra -pedantic
+CXXFLAGS = -std=c++17 -Wall -Wextra -pedantic -O3 -march=native
 
-TARGET = orderbook
+MAIN_TARGET = orderbook
 TEST_TARGET = orderbook_tests
+BENCH_TARGET = orderbook_benchmark
 
-SRCS = main.cpp orderbook.cpp
+MAIN_SRCS = main.cpp orderbook.cpp
 TEST_SRCS = test.cpp orderbook.cpp
+BENCH_SRCS = benchmark.cpp orderbook.cpp
 
-OBJS = $(SRCS:.cpp=.o)
-TEST_OBJS = $(TEST_SRCS:.cpp=.o)
+.PHONY: all clean run test benchmark debug
 
-all: $(TARGET)
+all: $(MAIN_TARGET) $(TEST_TARGET)
 
-$(TARGET): $(OBJS)
-	$(CXX) $(CXXFLAGS) -o $(TARGET) $(OBJS)
+$(MAIN_TARGET): $(MAIN_SRCS) orderbook.hpp
+	$(CXX) $(CXXFLAGS) $(MAIN_SRCS) -o $(MAIN_TARGET)
 
-$(TEST_TARGET): $(TEST_OBJS)
-	$(CXX) $(CXXFLAGS) -o $(TEST_TARGET) $(TEST_OBJS)
+$(TEST_TARGET): $(TEST_SRCS) orderbook.hpp
+	$(CXX) $(CXXFLAGS) $(TEST_SRCS) -o $(TEST_TARGET)
 
-%.o: %.cpp orderbook.hpp
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+$(BENCH_TARGET): $(BENCH_SRCS) orderbook.hpp
+	$(CXX) $(CXXFLAGS) $(BENCH_SRCS) -o $(BENCH_TARGET)
 
-run: $(TARGET)
-	./$(TARGET)
+run: $(MAIN_TARGET)
+	./$(MAIN_TARGET)
 
 test: $(TEST_TARGET)
 	./$(TEST_TARGET)
 
+benchmark: $(BENCH_TARGET)
+	./$(BENCH_TARGET)
+
+debug:
+	$(CXX) -std=c++17 -Wall -Wextra -pedantic -g -O0 $(MAIN_SRCS) -o $(MAIN_TARGET)
+
 clean:
-	rm -f $(OBJS) $(TEST_OBJS) $(TARGET) $(TEST_TARGET)
+	rm -f $(MAIN_TARGET) $(TEST_TARGET) $(BENCH_TARGET)
+	
